@@ -1,7 +1,8 @@
-# Copyright 2016-TODAY LasLabs Inc.
+# Copyright 2017-TODAY Benoit "XtremXpert" Vezina
 # License MIT (https://opensource.org/licenses/MIT).
 
 # Some of this taken from https://github.com/Tecnativa/odoo/blob/docker/Dockerfile
+
 # @TODO: Submit upstream PR with changes & move out the duplicate logic.
 
 FROM python:2-alpine
@@ -10,9 +11,7 @@ MAINTAINER "LasLabs Inc." <support@laslabs.com>
 ARG ODOO_VERSION="10.0"
 ARG ODOO_REPO="odoo/odoo"
 ARG ODOO_CONFIG_FILE="odoo.conf"
-
 ARG ODOO_CONFIG_DIR="/etc/odoo"
-
 ARG WKHTMLTOX_VERSION="0.12"
 ARG WKHTMLTOX_SUBVERSION="4"
 
@@ -77,6 +76,7 @@ RUN apk add --no-cache --virtual .build-deps \
     postgresql-dev \
     # python-ldap
     openldap-dev \
+#    py-pyldap \
     # Sass, compass
     libffi-dev \
     ruby-dev \
@@ -97,19 +97,23 @@ RUN apk add --no-cache --virtual .build-deps \
         # TODO Remove in vobject>=0.9.3
         vobject==0.6.6
 
+
+#RUN cd /tmp \
+#	&& wget https://pypi.python.org/packages/8b/f3/8122b9d8999a67293a5a236f4b9eda009dce76835bb854fb848b1133dbe0/python-ldap-2.4.39.tar.gz \
+#	&& tar -xvf python-ldap-2.4.39.tag.gz \
+#	&& cd python-ldap-2.4.39
+
 # Install Odoo
 RUN adduser -D odoo
 
-RUN mkdir -p /tmp/odoo \
-    && mkdir -p /opt/odoo \
+RUN mkdir -p /opt/odoo \
     && curl -sL "$ODOO_URI" \
-    | tar xz -C /tmp/odoo --strip 1
+    | tar xz -C /opt/odoo --strip 1
 
-WORKDIR /tmp/odoo
+WORKDIR /opt/odoo
 
 RUN pip install --no-cache-dir -r ./requirements.txt \
     && pip install --no-cache-dir . \
-    && mv ./addons /opt/odoo \
     && chown -R odoo /opt/odoo
 
 RUN mkdir -p /etc/odoo \
@@ -153,7 +157,9 @@ RUN pip install --no-cache-dir openupgradelib
 
 # Copy Entrypoint & Odoo conf
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
-COPY ./etc/odoo-server.conf "$ODOO_CONFIG"
+#COPY ./etc/odoo-server.conf "$ODOO_CONFIG"
+#COPY ./etc/odoo-server.conf /root/etc/odoo/odoo.conf
+COPY ./etc/odoo-server.conf /root"$ODOO_CONFIG"
 
 RUN chown odoo /docker-entrypoint.sh \
     && chmod +x /docker-entrypoint.sh \
@@ -173,7 +179,7 @@ RUN awk '/import odoo/ { print; print "import threading; threading.stack_size(4*
     && chmod +x /usr/local/bin/odoo
 
 # Mount Volumes
-VOLUME ["/var/lib/odoo", "/mnt/addons"]
+VOLUME ["/var/lib/odoo", "/mnt/addons", "/etc/odoo"]
 
 # Expose Odoo services
 EXPOSE 8069 8071

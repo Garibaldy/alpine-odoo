@@ -18,6 +18,22 @@ ADDONS=("/usr/lib/python2.7/site-packages/openerp/addons" \
         "/mnt/addons" \
         )
 
+# Check if there is a odoo.conf, if not create it
+#if [ ! -f /etc/odoo/odoo.conf ]; then
+if [ ! -f ${ODOO_CONFIG} ]; then
+    echo "Configuration file not found!  Initializing docker volumes"
+#    exec su-exec odoo odoo --save --config $ODOO_CONFIG 
+#    echo "Disabling addons_path in the config file as we pass it as arguments"
+#    sed -i '/addons_path/d' $ODOO_CONFIG
+#    echo "Setting the database password and user"
+#    sed -i '/^db_password =/s/=.*/= odoo/' $ODOO_CONFIG
+#    sed -i '/^db_user =/s/=.*/= odoo/' $ODOO_CONFIG
+#    echo "Setting the filestore directory"
+#    sed -i 's/\/home\/odoo\/.local\/share\/Odoo/\/var\/lib\/odoo/g' $ODOO_CONFIG
+	cp /root${ODOO_CONFIG} ${ODOO_CONFIG}
+	chown odoo:odoo ${ODOO_CONFIG} 2>/dev/null
+fi
+
 # Install requirements.txt and oca_dependencies.txt from root of mount
 if [[ "${SKIP_DEPENDS}" != "1" ]] ; then
 
@@ -28,7 +44,7 @@ if [[ "${SKIP_DEPENDS}" != "1" ]] ; then
     for dir in /opt/community/*/ ; do
         ADDONS+=("$dir")
     done
-
+	echo ${ADDONS[*]}
     VALID_ADDONS="$(get_addons ${ADDONS[*]})"
     DB_ARGS+=("--addons-path=${VALID_ADDONS}")
 
@@ -48,18 +64,32 @@ check_config "db_port" "$PSQL_PORT"
 check_config "db_user" "$PSQL_USER"
 check_config "db_password" "$PSQL_PASSWORD"
 
+# Change ownership to odoo for Volume and OCA
+chown -R odoo:odoo \
+	${ODOO_CONFIG_DIR} \
+	${ODOO_LOG} \
+	/var/lib/odoo \
+	/opt/addons \
+	/opt/community \
+	/mnt/addons 2>/dev/null
+
+# Big hack to fix ldap error from server-tools
+#  ImportError: Error relocating /usr/local/lib/python2.7/site-packages/_ldap.so: ber_free: symbol not found
+rm -rf /opt/community/server-tools/users_ldap_populate 2>/dev/null
+
+
 # Execute
 case "$1" in
     -- | odoo)
         shift
         if [[ "$1" == "scaffold" ]] ; then
-            exec odoo "$@"
+            exec su-exec odoo odoo "$@"
         else
-            exec odoo "$@" "${DB_ARGS[@]}"
+            exec su-exec odoo odoo "$@" "${DB_ARGS[@]}"
         fi
         ;;
     -*)
-        exec odoo "$@" "${DB_ARGS[@]}"
+        exec su-exec odoo odoo "$@" "${DB_ARGS[@]}"
         ;;
     *)
         "$@"

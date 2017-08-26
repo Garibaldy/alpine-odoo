@@ -1,0 +1,28 @@
+version: '2'
+services:
+  odoo:
+    image: alpine-odoo:latest
+    environment:
+      PGHOST: db
+      PGPASSWORD: odoo
+      PGUSER: odoo
+    stdin_open: true
+    volumes:
+    - ../test/filestore:/var/lib/odoo/filestore
+    - ../test/config:/etc/odoo
+    - ../test/addons:/mnt/addons
+    tty: true
+    links:
+    - db:db
+    ports:
+    - 90:8069/tcp
+  db:
+    image: postgres:9.6
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_USER: odoo
+    stdin_open: true
+    volumes:
+    - ../test/pgdata:/var/lib/postgresql/data/pgdata
+    tty: true
