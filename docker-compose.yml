@@ -1,7 +1,7 @@
 version: '2'
 services:
   odoo:
-    image: alpine-odoo:latest
+    image: alpine-odoo-test:latest
     environment:
       PGHOST: db
       PGPASSWORD: odoo
@@ -16,6 +16,10 @@ services:
     - db:db
     ports:
     - 90:8069/tcp
+#    logging:
+#      driver: gelf
+#      options:
+#        gelf-address: "udp://127.0.0.1:12201" 
   db:
     image: postgres:9.6
     environment:
@@ -26,3 +30,7 @@ services:
     volumes:
     - ../test/pgdata:/var/lib/postgresql/data/pgdata
     tty: true
+ #   logging:
+ #     driver: gelf
+ #     options:
+ #       gelf-address: "udp://127.0.0.1:12201" 

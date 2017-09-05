@@ -1,12 +1,12 @@
 # Copyright 2017-TODAY Benoit "XtremXpert" Vezina
 # License MIT (https://opensource.org/licenses/MIT).
 
-# Some of this taken from https://github.com/Tecnativa/odoo/blob/docker/Dockerfile
+# Much of this taken from https://github.com/LasLabs/docker-odoo/blob/master/Dockerfile
 
-# @TODO: Submit upstream PR with changes & move out the duplicate logic.
+# Update to a newer alpine version
+FROM python:2-alpine3.6
 
-FROM python:2-alpine
-MAINTAINER "LasLabs Inc." <support@laslabs.com>
+MAINTAINER "Benoît Vézina" <benoit@xtremxpert.com>
 
 ARG ODOO_VERSION="10.0"
 ARG ODOO_REPO="odoo/odoo"
@@ -19,7 +19,11 @@ ENV ODOO_LOG="/var/log/odoo.log"
 ENV ODOO_CONFIG="${ODOO_CONFIG_DIR}/${ODOO_CONFIG_FILE}"
 ENV WKHTMLTOX_RELEASE="${WKHTMLTOX_VERSION}.${WKHTMLTOX_SUBVERSION}"
 ENV WKHTMLTOX_URI="http://download.gna.org/wkhtmltopdf/${WKHTMLTOX_VERSION}/${WKHTMLTOX_RELEASE}/wkhtmltox-${WKHTMLTOX_RELEASE}_linux-generic-amd64.tar.xz"
+
+# For stable 10.0
 ENV ODOO_URI="https://github.com/${ODOO_REPO}/archive/${ODOO_VERSION}.tar.gz"
+# For Nightly 11.0 alpha
+#ENV ODOO_URI="https://nightly.odoo.com/master/nightly/src/odoo_11.0alpha1.latest.tar.gz"
 
 # https://github.com/OCA/maintainer-quality-tools/pull/404
 ENV MQT_URI="https://github.com/LasLabs/maintainer-quality-tools/archive/bugfix/script-shebang.tar.gz"
@@ -35,8 +39,10 @@ RUN apk add --no-cache \
         icu \
         libev \
         nodejs \
+        nodejs-npm \
         openssl \
-        postgresql-libs \
+##        postgresql-client \
+#        postgresql-libs \
         poppler-utils \
         ruby \
         su-exec
@@ -48,6 +54,7 @@ RUN apk add --no-cache \
 RUN apk add --no-cache --repository http://dl-cdn.alpinelinux.org/alpine/edge/testing wkhtmltopdf
 RUN apk add --no-cache xvfb ttf-dejavu ttf-freefont fontconfig dbus
 COPY bin/wkhtmltox.sh /usr/local/bin/wkhtmltoimage
+COPY python-ldap.patch /tmp/setup.cfg.diff
 RUN ln /usr/local/bin/wkhtmltoimage /usr/local/bin/wkhtmltopdf
 
 # Requirements to build Odoo dependencies
@@ -72,11 +79,11 @@ RUN apk add --no-cache --virtual .build-deps \
     # psutil
     linux-headers \
     # psycopg2
+# postgresql is needed for pgdump
     postgresql \
     postgresql-dev \
     # python-ldap
     openldap-dev \
-#    py-pyldap \
     # Sass, compass
     libffi-dev \
     ruby-dev \
@@ -97,38 +104,29 @@ RUN apk add --no-cache --virtual .build-deps \
         # TODO Remove in vobject>=0.9.3
         vobject==0.6.6
 
-
-#RUN cd /tmp \
-#	&& wget https://pypi.python.org/packages/8b/f3/8122b9d8999a67293a5a236f4b9eda009dce76835bb854fb848b1133dbe0/python-ldap-2.4.39.tar.gz \
-#	&& tar -xvf python-ldap-2.4.39.tag.gz \
-#	&& cd python-ldap-2.4.39
-
 # Install Odoo
-RUN adduser -D odoo
-
-RUN mkdir -p /opt/odoo \
-    && curl -sL "$ODOO_URI" \
-    | tar xz -C /opt/odoo --strip 1
-
-WORKDIR /opt/odoo
-
-RUN pip install --no-cache-dir -r ./requirements.txt \
+RUN adduser -D odoo \
+	&& mkdir -p /opt/odoo \
+    && curl -sL "$ODOO_URI" | tar xz -C /opt/odoo --strip 1 \
+	&& cd /opt/odoo \
+	&& pip install --no-cache-dir -r ./requirements.txt \
     && pip install --no-cache-dir . \
-    && chown -R odoo /opt/odoo
-
-RUN mkdir -p /etc/odoo \
-             /mnt/addons \
-             /opt/addons \
-             /opt/community \
-             /var/lib/odoo \
-             /var/log/odoo \
+    && chown -R odoo /opt/odoo \
+	&& mkdir -p \
+		/etc/odoo \
+        /mnt/addons \
+        /opt/addons \
+        /opt/community \
+        /var/lib/odoo \
+        /var/log/odoo \
     && ln -sf /dev/stdout "$ODOO_LOG" \
-    && chown odoo -R /etc/odoo \
-                     /mnt/addons \
-                     /opt/addons \
-                     /opt/community \
-                     /var/lib/odoo \
-                     /var/log/odoo
+    && chown odoo -R \
+    	/etc/odoo \
+        /mnt/addons \
+        /opt/addons \
+        /opt/community \
+        /var/lib/odoo \
+        /var/log/odoo
 
 # Upgrade pillow, old versions cause zlib issues for some reason
 RUN CFLAGS="$CFLAGS -L/lib" pip install --no-cache-dir --upgrade pillow
@@ -153,6 +151,7 @@ RUN pip install --no-cache-dir wdb
 
 # Other facilities
 RUN apk add --no-cache bash gettext postgresql-client
+#RUN apk add --no-cache bash gettext
 RUN pip install --no-cache-dir openupgradelib
 
 # Copy Entrypoint & Odoo conf
@@ -183,6 +182,17 @@ VOLUME ["/var/lib/odoo", "/mnt/addons", "/etc/odoo"]
 
 # Expose Odoo services
 EXPOSE 8069 8071
+
+# Big hack to fix ldap error from server-tools
+# ImportError: Error relocating /usr/local/lib/python2.7/site-packages/_ldap.so: ber_free: symbol not found
+RUN cd /tmp \
+	&& wget https://pypi.python.org/packages/fc/99/9eed836fe4d916792994838df125da9c25c5f7c31abfbf6f0ab076e5f419/python-ldap-2.4.27.tar.gz \
+	&& tar -xvf python-ldap-2.4.27.tar.gz \
+	&& cd /tmp/python-ldap-2.4.27 \
+	&& patch -i /tmp/setup.cfg.diff setup.cfg \
+	&& python setup.py build \
+	&& pip uninstall -y python-ldap \
+	&& python setup.py install
 
 # Entrypoint & Cmd
 ENTRYPOINT ["/docker-entrypoint.sh"]

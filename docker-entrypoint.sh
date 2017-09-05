@@ -14,7 +14,10 @@ DB_ARGS=("--config=${ODOO_CONFIG}" "--logfile=${ODOO_LOG}")
 ADDONS=("/usr/lib/python2.7/site-packages/openerp/addons" \
         "/usr/lib/python2.7/site-packages/odoo/addons" \
         "/opt/addons" \
+# For stabel Odoo 10
         "/opt/odoo/addons" \
+# For nightly Odoo 11 alpha
+#        "/opt/odoo/odoo/addons" \
         "/mnt/addons" \
         )
 
@@ -47,7 +50,7 @@ if [[ "${SKIP_DEPENDS}" != "1" ]] ; then
 	echo ${ADDONS[*]}
     VALID_ADDONS="$(get_addons ${ADDONS[*]})"
     DB_ARGS+=("--addons-path=${VALID_ADDONS}")
-
+	grep -l -r -i "'installable': False" /opt/community/* | sed 's/__manifest__.py//' | xargs rm -rf
 fi
 
 # Pull database from config file if present & validate
@@ -73,10 +76,7 @@ chown -R odoo:odoo \
 	/opt/community \
 	/mnt/addons 2>/dev/null
 
-# Big hack to fix ldap error from server-tools
-#  ImportError: Error relocating /usr/local/lib/python2.7/site-packages/_ldap.so: ber_free: symbol not found
-rm -rf /opt/community/server-tools/users_ldap_populate 2>/dev/null
-
+echo ${DB_ARGS[@]}
 
 # Execute
 case "$1" in
