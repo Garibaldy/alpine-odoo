@@ -1,0 +1,14 @@
+--- setup.cfg	2017-05-31 08:35:34.000000000 -0400
++++ setup.cfg.corr	2017-09-01 15:40:01.726429652 -0400
+@@ -2,9 +2,9 @@
+ library_dirs = /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64
+ include_dirs = /usr/include /usr/include/sasl /usr/local/include /usr/local/include/sasl
+ defines = HAVE_SASL HAVE_TLS HAVE_LIBLDAP_R
+-extra_compile_args = 
++extra_compile_args = -g 
+ extra_objects = 
+-libs = ldap_r
++libs = ldap_r lber sasl2 ssl crypto
+ 
+ [install]
+ compile = 1
